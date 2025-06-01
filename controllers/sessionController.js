@@ -7,15 +7,22 @@ const {
   removeClient,
   getAllClients,
 } = require("../config/clientManager");
+const { getSessionSockets } = require("../wsManager"); // <-- Correct import
 
 const createSession = async (req, res) => {
   const sessionId = req.body?.sessionId || require("uuid").v4();
+  const userId = req.body?.userId; // <-- get userId from request
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
 
   if (getClient(sessionId)) {
     return res.status(400).json({ error: "Session already exists" });
   }
 
   const client = createClient(sessionId);
+  client.userId = userId; // <-- associate userId with client
   let responded = false;
 
   client.on("qr", async (qr) => {
@@ -26,25 +33,31 @@ const createSession = async (req, res) => {
     }
   });
 
- client.on("ready", async () => {
-  const info = await client.info;
-  client.phoneNumber = info.wid.user;
-  client.pushname = info.pushname;
-  console.log(`Client ${sessionId} is ready`);
+  client.on("ready", async () => {
+    const info = await client.info;
+    client.phoneNumber = info.wid.user;
+    client.pushname = info.pushname;
+    console.log(`Client ${sessionId} is ready`);
 
-  // 📥 Listen for incoming messages
-  client.on("message", async (msg) => {
-    const from = msg.from;
-    const body = msg.body;
-    const type = msg.type;
-    const timestamp = msg.timestamp;
+    // 📥 Listen for incoming messages
+    client.on("message", async (msg) => {
+      const from = msg.from;
+      const body = msg.body;
+      const type = msg.type;
+      const timestamp = msg.timestamp;
 
-    console.log(`[${sessionId}] From: ${from}, Msg: ${body}`);
+      console.log(`[${sessionId}] From: ${from}, Msg: ${body}`);
 
-    // TODO: Store to DB or emit via WebSocket
+      // WebSocket: send to connected client if exists
+      const sessionSockets = getSessionSockets();
+      const ws = sessionSockets[sessionId];
+      if (ws && ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ from, body, type, timestamp }));
+      }
+
+      // TODO: Store to DB if needed
+    });
   });
-});
-
 
   client.on("authenticated", () => {
     console.log(`Client ${sessionId} authenticated`);
@@ -75,24 +88,30 @@ const createSession = async (req, res) => {
 };
 
 const listSessions = (req, res) => {
-  const sessions = Object.entries(getAllClients()).map(
-    ([sessionId, client]) => ({
+  const userId = req.query.userId;
+  if (!userId) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  const sessions = Object.entries(getAllClients())
+    .filter(([_, client]) => client.userId === userId)
+    .map(([sessionId, client]) => ({
       sessionId,
       phoneNumber: client.phoneNumber || sessionId,
       pushname: client.pushname || "Unknown",
-    })
-  );
+    }));
+
   res.json({ sessions });
 };
-
-
 
 const logoutAndDeleteSession = async (req, res) => {
   const sessionId = req.body.sessionId || req.params.sessionId;
   const client = getClient(sessionId);
 
   if (!client) {
-    return res.status(404).json({ success: false, message: "Session not found" });
+    return res
+      .status(404)
+      .json({ success: false, message: "Session not found" });
   }
 
   try {
@@ -104,12 +123,18 @@ const logoutAndDeleteSession = async (req, res) => {
     removeClient(sessionId);
 
     // Remove session folder
-    const sessionPath = path.join(__dirname, `../sessions/session-${sessionId}`);
+    const sessionPath = path.join(
+      __dirname,
+      `../sessions/session-${sessionId}`
+    );
     if (fs.existsSync(sessionPath)) {
       fs.rmSync(sessionPath, { recursive: true, force: true });
     }
 
-    return res.json({ success: true, message: "Session logged out and deleted successfully" });
+    return res.json({
+      success: true,
+      message: "Session logged out and deleted successfully",
+    });
   } catch (error) {
     console.error("Error during logout and deletion:", error);
     return res.status(500).json({
@@ -170,7 +195,6 @@ const logoutAndDeleteSession = async (req, res) => {
 //     });
 //   }
 // };
-
 
 module.exports = {
   createSession,
