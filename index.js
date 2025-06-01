@@ -1,8 +1,8 @@
- 
-
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
+const http = require("http");
+const { setupWSServer } = require("./wsManager"); // Only use this
 
 const apiRoutes = require("./routes/apiRoutes");
 
@@ -18,6 +18,10 @@ const upload = multer(); // Used in route
 app.use(upload.single("media")); // attach multer to POST
 app.use("/", apiRoutes);
 
-app.listen(port, () => {
+const server = http.createServer(app);
+
+setupWSServer(server); // <-- Only this for WebSocket
+
+server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
