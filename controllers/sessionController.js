@@ -8,6 +8,7 @@ const {
   getAllClients,
 } = require("../config/clientManager");
 const { getSessionSockets } = require("../wsManager"); // <-- Correct import
+const db = require("../firebase");
 
 const createSession = async (req, res) => {
   const sessionId = req.body?.sessionId || require("uuid").v4();
@@ -45,6 +46,25 @@ const createSession = async (req, res) => {
       const body = msg.body;
       const type = msg.type;
       const timestamp = msg.timestamp;
+
+      // Save to Firestore
+      try {
+        await db
+          .collection("users")
+          .doc(client.userId)
+          .collection("sessions")
+          .doc(sessionId)
+          .collection("messages")
+          .add({
+            from,
+            body,
+            type,
+            timestamp,
+            sessionId,
+          });
+      } catch (e) {
+        console.error("Firestore save error:", e);
+      }
 
       console.log(`[${sessionId}] From: ${from}, Msg: ${body}`);
 
