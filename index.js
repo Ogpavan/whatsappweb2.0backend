@@ -15,7 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const upload = multer(); // Used in route
 
-app.use(upload.single("media")); // attach multer to POST
+// app.use(upload.single("media")); // attach multer to POST
 app.use("/", apiRoutes);
 
 const server = http.createServer(app);
