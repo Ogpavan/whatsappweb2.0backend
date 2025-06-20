@@ -7,7 +7,9 @@ const {
   removeClient,
   getAllClients,
 } = require("../config/clientManager");
-const { getSessionSockets } = require("../wsManager"); // <-- Correct import
+const { getSessionSockets } = require("../wsManager");
+
+// const getClient = require("../config/clientManager").getClient; // <-- Correct import
 
 const createSession = async (req, res) => {
   const sessionId = req.body?.sessionId || require("uuid").v4();
@@ -104,6 +106,28 @@ const listSessions = (req, res) => {
   res.json({ sessions });
 };
 
+const getAllChats = async (req, res) => {
+  const { sessionId } = req.query;
+  const client = getClient(sessionId);
+  if (!client) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+  try {
+    const chats = await client.getChats();
+    const formattedChats = chats.map((chat) => ({
+      id: chat.id,
+      name: chat.name || chat.formattedTitle || chat.id.user,
+      profilePic: chat.profilePicUrl || null, // Ensure profilePicUrl is returned
+      lastMessage: chat.lastMessage || null,
+    }));
+    // console.log("formattedChats:", formattedChats);
+    res.json({ chats: formattedChats });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch chats" });
+  }
+};
+// module.exports.getAllChats = getAllChats;
+
 const logoutAndDeleteSession = async (req, res) => {
   const sessionId = req.body.sessionId || req.params.sessionId;
   const client = getClient(sessionId);
@@ -196,10 +220,43 @@ const logoutAndDeleteSession = async (req, res) => {
 //   }
 // };
 
+const getMessages = async (req, res) => {
+  const { sessionId, chatId, limit = 50 } = req.query;
+  const client = getClient(sessionId);
+
+  if (!client) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+
+  try {
+    const chat = await client.getChatById(chatId);
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const messages = await chat.fetchMessages({ limit: parseInt(limit, 10) });
+    const formattedMessages = messages.map((msg) => ({
+      id: msg.id._serialized,
+      from: msg.from,
+      to: msg.to,
+      body: msg.body,
+      type: msg.type,
+      timestamp: msg.timestamp,
+    }));
+
+    res.json({ messages: formattedMessages });
+  } catch (err) {
+    console.error("Failed to fetch messages:", err);
+    res.status(500).json({ error: "Failed to fetch messages" });
+  }
+};
+
 module.exports = {
   createSession,
   listSessions,
   logoutAndDeleteSession,
+  getAllChats,
+  getMessages,
   // logoutSession,
   // deleteSession, // 👈 Export it here
 };
