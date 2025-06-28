@@ -9,6 +9,7 @@ const createClient = (sessionId) => {
       dataPath: "./sessions",
     }),
     puppeteer: {
+      executablePath: '/usr/bin/google-chrome',
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     },

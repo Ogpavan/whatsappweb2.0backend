@@ -7,7 +7,7 @@ const { setupWSServer } = require("./wsManager"); // Only use this
 const apiRoutes = require("./routes/apiRoutes");
 
 const app = express();
-const port = 5000;
+ 
 
 app.use(cors());
 app.use(express.json());
@@ -22,6 +22,7 @@ const server = http.createServer(app);
 
 setupWSServer(server); // <-- Only this for WebSocket
 
-server.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+const PORT = 5000;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
 });

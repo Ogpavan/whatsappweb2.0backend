@@ -1,6 +1,9 @@
 // routes/index.js
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const upload = multer(); // memory storage
+
 const {
   createSession,
   listSessions,
@@ -26,7 +29,8 @@ router.get("/contacts", getContacts);
 // router.post("/logout", logoutSession); // Optional: Just disconnects
 // router.delete("/delete-session/:sessionId", deleteSession); // 👈 Add this
 
-router.post("/send", sendMessage);
+// Use upload.single("media") for file uploads
+router.post("/send", upload.single("media"), sendMessage);
 
 router.get("/contact/:number", async (req, res) => {
   const { number } = req.params;
